@@ -1,0 +1,19 @@
+[package]
+name = "galton-board"
+version = "0.1.0"
+edition = "2024"
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
+
+[dependencies]
+bevy = { version = "0.18.1", default-features = false, features = ["2d_bevy_render", "default_app", "default_platform"] }
+bevy_egui = "0.39.1"
+bevy_rapier2d = { version = "0.33.0", features = ["simd-stable"] }
+rand = "0.10.0"
