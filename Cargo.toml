@@ -16,5 +16,6 @@ strip = true
 bevy = { version = "0.18.1", default-features = false, features = ["2d_bevy_render", "default_app", "default_platform"] }
 bevy_egui = "0.39.1"
 bevy_rapier2d = { version = "0.33.0", features = ["simd-stable"] }
+bevy_svg = { version = "0.18.0", features = ["2d", "3d"], default-features = false }
 derive_more = { version = "2.1.1", features = ["is_variant"] }
 rand = "0.10.0"
