@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui::Color32, prelude::*};
 use bevy_rapier2d::prelude::*;
 use bevy_svg::prelude::*;
-use derive_more::IsVariant;
+use derive_more::{Constructor, IsVariant};
 use rand::RngExt;
 
 const BALL_RADIUS: f32 = 5.;
@@ -14,7 +14,7 @@ const BALL_TEXTURE_DIMS: f32 = 733.;
 const PEG_RADIUS: f32 = 10.;
 const PEG_RESTITUTION: Restitution = Restitution::coefficient(0.5);
 const PEG_FRICTION: Friction = Friction::coefficient(0.7);
-const PEG_COLOR: Color = Color::srgb_u8(255, 0, 0);
+const PEG_COLOR: Color = Color::srgb_u8(0xFE, 0x91, 0xCA);
 
 const PEG_HORIZONTAL_SPACING: f32 = 80.;
 const PEG_VERTICAL_SPACING: f32 = 40.;
@@ -36,7 +36,6 @@ fn main() {
         }))
         .add_plugins(EguiPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(50.))
-        // .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(SvgPlugin)
         .init_resource::<RedrawBoard>()
         .init_resource::<PegLayers>()
@@ -221,25 +220,55 @@ fn ui_system(
 #[derive(Component)]
 struct Board;
 
-#[derive(Debug, Bundle)]
+/// Convenience struct for generating multiple walls
+#[derive(Constructor)]
+struct WallBundleFactory<'a> {
+    assets: &'a LoadedAssets,
+    meshes: &'a mut Assets<Mesh>,
+}
+
+impl<'a> WallBundleFactory<'a> {
+    fn wall(&mut self, a: Vec2, b: Vec2) -> WallBundle {
+        WallBundle::new(a, b, self.assets, self.meshes)
+    }
+}
+
+#[derive(Bundle)]
 struct WallBundle {
     collider: Collider,
     friction: Friction,
     restitution: Restitution,
     ccd: Ccd,
-    mesh2d: Mesh2d,
-    mesh_material2d: MeshMaterial2d<ColorMaterial>,
+
+    mesh: Mesh2d,
+    material: MeshMaterial2d<ColorMaterial>,
+
+    transform: Transform,
 }
 
 impl WallBundle {
-    fn new(point1: Vec2, point2: Vec2, assets: &LoadedAssets, meshes: &mut Assets<Mesh>) -> Self {
+    fn new(a: Vec2, b: Vec2, assets: &LoadedAssets, meshes: &mut Assets<Mesh>) -> Self {
+        let delta = b - a;
+        let length = delta.length();
+        let midpoint = (a + b) * 0.5;
+
+        let rotation = Quat::from_rotation_z(delta.x.atan2(delta.y));
+        let half = length * 0.5;
+
         Self {
-            collider: Collider::capsule(point1, point2, WALL_RADIUS),
+            collider: Collider::capsule(Vec2::Y * half, Vec2::NEG_Y * half, WALL_RADIUS),
             friction: WALL_FRICTION,
             restitution: WALL_RESTITUTION,
             ccd: Ccd::enabled(),
-            mesh2d: Mesh2d(meshes.add(Capsule2d::new(WALL_RADIUS, point1.distance(point2) / 2.))),
-            mesh_material2d: MeshMaterial2d(assets.wall.clone()),
+
+            mesh: Mesh2d(meshes.add(Capsule2d::new(WALL_RADIUS, length))),
+            material: MeshMaterial2d(assets.wall.clone()),
+
+            transform: Transform {
+                translation: midpoint.extend(0.0),
+                rotation,
+                ..default()
+            },
         }
     }
 }
@@ -280,11 +309,13 @@ fn setup_board(
                 horizontal_offset_base -= PEG_HORIZONTAL_SPACING / 2.;
             }
 
+            let mut wall_factory = WallBundleFactory::new(&assets, &mut meshes);
+
             // Spawn bucket walls
             horizontal_offset_base -= PEG_HORIZONTAL_SPACING / 2.;
             let last_layer_y = -((peg_layers.0 - 1) as f32) * PEG_VERTICAL_SPACING;
             for i in 0..peg_layers.0 + 2 {
-                parent.spawn(WallBundle::new(
+                parent.spawn(wall_factory.wall(
                     Vec2::new(
                         horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
                         last_layer_y,
@@ -293,19 +324,12 @@ fn setup_board(
                         horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
                         last_layer_y - 400., // TODO parametrise this bih
                     ),
-                    &assets,
-                    &mut meshes,
                 ));
             }
 
             // Spawn bucket floor
             let floor_left_point = Vec2::new(horizontal_offset_base, last_layer_y - 400.);
-            parent.spawn(WallBundle::new(
-                floor_left_point,
-                flip_x(floor_left_point),
-                &assets,
-                &mut meshes,
-            ));
+            parent.spawn(wall_factory.wall(floor_left_point, flip_x(floor_left_point)));
 
             // Spawn side barriers
             fn flip_x(v: Vec2) -> Vec2 {
@@ -314,23 +338,13 @@ fn setup_board(
 
             let point1 = Vec2::from((horizontal_offset_base, last_layer_y));
             let point2 = Vec2::from((-PEG_HORIZONTAL_SPACING / 2., PEG_VERTICAL_SPACING));
-            parent.spawn(WallBundle::new(point1, point2, &assets, &mut meshes));
-            parent.spawn(WallBundle::new(
-                flip_x(point1),
-                flip_x(point2),
-                &assets,
-                &mut meshes,
-            ));
+            parent.spawn(wall_factory.wall(point1, point2));
+            parent.spawn(wall_factory.wall(flip_x(point1), flip_x(point2)));
 
             // Spawn the spawn area
             let bucket_point = Vec2::from((-300., 175.));
-            parent.spawn(WallBundle::new(point2, bucket_point, &assets, &mut meshes));
-            parent.spawn(WallBundle::new(
-                flip_x(point2),
-                flip_x(bucket_point),
-                &assets,
-                &mut meshes,
-            ));
+            parent.spawn(wall_factory.wall(point2, bucket_point));
+            parent.spawn(wall_factory.wall(flip_x(point2), flip_x(bucket_point)));
         });
 }
 

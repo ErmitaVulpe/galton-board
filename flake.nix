@@ -39,6 +39,7 @@
                   "aarch64-unknown-linux-gnu"
                 ];
               })
+              just
               pkg-config
             ]
             ++ lib.optionals (lib.strings.hasInfix "linux" system) [
