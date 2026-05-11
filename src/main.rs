@@ -5,24 +5,24 @@ use bevy_svg::prelude::*;
 use derive_more::{Constructor, IsVariant};
 use rand::RngExt;
 
-const BALL_RADIUS: f32 = 5.;
-const BALL_RESTITUTION: Restitution = Restitution::coefficient(0.2);
-const BALL_FRICTION: Friction = Friction::coefficient(1.5);
+const BALL_RADIUS: f32 = 8.;
+const BALL_RESTITUTION: Restitution = Restitution::coefficient(0.5);
+const BALL_FRICTION: Friction = Friction::coefficient(0.05);
 const BALL_SPAWN_JITTER: f32 = 0.05;
 const BALL_TEXTURE_DIMS: f32 = 733.;
 
-const PEG_RADIUS: f32 = 10.;
+const PEG_RADIUS: f32 = 3.;
 const PEG_RESTITUTION: Restitution = Restitution::coefficient(0.5);
-const PEG_FRICTION: Friction = Friction::coefficient(0.7);
+const PEG_FRICTION: Friction = Friction::coefficient(0.05);
 const PEG_COLOR: Color = Color::srgb_u8(0xFE, 0x91, 0xCA);
 
 const PEG_HORIZONTAL_SPACING: f32 = 80.;
 const PEG_VERTICAL_SPACING: f32 = 40.;
 const PEG_SPAWN_JITTER: f32 = 0.05;
 
-const WALL_RADIUS: f32 = PEG_RADIUS / 2.;
-const WALL_RESTITUTION: Restitution = Restitution::coefficient(1.);
-const WALL_FRICTION: Friction = Friction::coefficient(100.);
+const WALL_RADIUS: f32 = 5.;
+const WALL_RESTITUTION: Restitution = Restitution::coefficient(0.5);
+const WALL_FRICTION: Friction = Friction::coefficient(0.075);
 const WALL_COLOR: Color = Color::srgb_u8(0xA0, 0xA0, 0xA0);
 
 fn main() {
@@ -252,7 +252,7 @@ impl WallBundle {
         let length = delta.length();
         let midpoint = (a + b) * 0.5;
 
-        let rotation = Quat::from_rotation_z(delta.x.atan2(delta.y));
+        let rotation = Quat::from_rotation_z(-delta.x.atan2(delta.y));
         let half = length * 0.5;
 
         Self {
@@ -287,7 +287,6 @@ fn setup_board(
             let mut horizontal_offset_base = 0.;
 
             // Spawn pegs
-            // let texture_scale = BALL_RADIUS / (BALL_TEXTURE_DIMS / 2.);
             for layer in 0..peg_layers.0 {
                 for i in 0..=layer {
                     let x_jitter = rng.random_range(-PEG_SPAWN_JITTER..=PEG_SPAWN_JITTER);
