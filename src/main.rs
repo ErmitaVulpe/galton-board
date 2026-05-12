@@ -93,14 +93,14 @@ fn update_camera_system(
 ) {
     let mut viewport_size = camera.0.logical_viewport_size().unwrap();
     viewport_size.x -= side_panel_width.0;
-    let aabb = dbg!(&board_bounding_box.0);
+    let aabb = &board_bounding_box.0;
 
-    let center = dbg!(aabb.center());
-    let size = dbg!(aabb.max - aabb.min);
-    let padded_size = dbg!(size + Vec2::splat(BOARD_CENTRERING_PADDING * 2.0));
+    let center = aabb.center();
+    let size = aabb.max - aabb.min;
+    let padded_size = size + Vec2::splat(BOARD_CENTRERING_PADDING * 2.0);
 
-    camera.1.scale = Vec3::splat(dbg!((padded_size / viewport_size).max_element()));
-    camera.1.translation.y = dbg!(center.y);
+    camera.1.scale = Vec3::splat((padded_size / viewport_size).max_element());
+    camera.1.translation.y = center.y;
 }
 
 #[derive(Debug, Component)]
