@@ -99,7 +99,7 @@ fn update_camera_system(
     let size = aabb.max - aabb.min;
     let padded_size = size + Vec2::splat(BOARD_CENTRERING_PADDING * 2.0);
 
-    camera.1.scale = Vec3::splat((padded_size / viewport_size).max_element());
+    camera.1.scale = Vec3::splat((padded_size / viewport_size).max_element().min(1000.));
     camera.1.translation.y = center.y;
 }
 
