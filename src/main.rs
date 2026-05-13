@@ -30,6 +30,7 @@ const WALL_FRICTION: Friction = Friction::coefficient(0.075);
 const WALL_COLOR: Color = Color::srgb_u8(0xA0, 0xA0, 0xA0);
 
 const SPAWN_AREA_HEIGHT: f32 = 400.;
+const MAX_SPAWN_AREA_BALLS: usize = 250;
 
 const BOARD_CENTRERING_PADDING: f32 = 50.;
 
@@ -70,7 +71,7 @@ fn main() {
             FixedUpdate,
             spawn_balls
                 .before(PhysicsSet::StepSimulation)
-                .run_if(in_state(SimState::Running)),
+                .run_if(in_state(SimState::Running).and(should_spawn_more)),
         )
         .add_systems(OnEnter(SimState::NotRunning), destroy_balls)
         .add_systems(
@@ -139,6 +140,15 @@ fn spawn_balls(
 
         balls_to_spawn.0 -= 1;
     }
+}
+
+fn should_spawn_more(query: Query<&Transform, With<BallMarker>>) -> bool {
+    let count = query
+        .iter()
+        .filter(|transform| transform.translation.truncate().y > 0.)
+        .count();
+
+    count < MAX_SPAWN_AREA_BALLS
 }
 
 #[derive(Resource, Default, PartialEq, Eq)]
