@@ -9,6 +9,10 @@ use bevy_svg::prelude::*;
 use derive_more::{Constructor, IsVariant};
 use rand::RngExt;
 
+use crate::pascal_triangle::PascalTriangle;
+
+mod pascal_triangle;
+
 const BALL_RADIUS: f32 = 8.;
 const BALL_RESTITUTION: Restitution = Restitution::coefficient(0.5);
 const BALL_FRICTION: Friction = Friction::coefficient(0.05);
@@ -50,6 +54,7 @@ fn main() {
         .init_resource::<PegLayers>()
         .init_resource::<RedrawBoard>()
         .init_resource::<SidePanelWidth>()
+        .init_resource::<PascalTriangle>()
         .init_state::<SimState>()
         .add_systems(
             Startup,
@@ -201,8 +206,6 @@ fn ui_system(
 ) {
     if let Ok(ctx) = contexts.ctx_mut() {
         egui::SidePanel::left("left_panel")
-            .min_width(420.)
-            .max_width(600.)
             .show(ctx, |ui| {
                 // Move the camera off so its centered in the area remaining from the side panel
                 let max_rect = ui.max_rect();
