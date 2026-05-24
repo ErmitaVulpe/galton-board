@@ -38,6 +38,8 @@ const MAX_SPAWN_AREA_BALLS: usize = 250;
 
 const BOARD_CENTRERING_PADDING: f32 = 50.;
 
+const BUCKET_LENGTH: f32 = 200.;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -205,78 +207,80 @@ fn ui_system(
     mut camera_transform: Single<&mut Transform, With<Camera>>,
 ) {
     if let Ok(ctx) = contexts.ctx_mut() {
-        egui::SidePanel::left("left_panel")
-            .show(ctx, |ui| {
-                // Move the camera off so its centered in the area remaining from the side panel
-                let max_rect = ui.max_rect();
-                let side_panel_width_ref = &side_panel_width;
-                let new_side_panel_width = max_rect.max.x + max_rect.min.x;
-                camera_transform.translation.x =
-                    new_side_panel_width * camera_transform.scale.x / -2.;
-                if side_panel_width_ref.0 != new_side_panel_width {
-                    side_panel_width.0 = new_side_panel_width;
-                }
+        egui::SidePanel::left("left_panel").show(ctx, |ui| {
+            // Move the camera off so its centered in the area remaining from the side panel
+            let max_rect = ui.max_rect();
+            let side_panel_width_ref = &side_panel_width;
+            let new_side_panel_width = max_rect.max.x + max_rect.min.x;
+            camera_transform.translation.x = new_side_panel_width * camera_transform.scale.x / -2.;
+            if side_panel_width_ref.0 != new_side_panel_width {
+                side_panel_width.0 = new_side_panel_width;
+            }
 
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("Galton board")
-                            .color(Color32::WHITE)
-                            .heading(),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if sim_state.get().is_running() {
-                            if ui.button("Cancel").clicked() {
-                                sim_state_next.set(SimState::NotRunning);
-                            };
-                        } else {
-                            if ui.button("Start").clicked() {
-                                sim_state_next.set(SimState::Running);
-                            };
-                        }
-                    });
-                });
-                egui::Grid::new("settings").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("Galton board")
+                        .color(Color32::WHITE)
+                        .heading(),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if sim_state.get().is_running() {
-                        ui.disable();
+                        if ui.button("Cancel").clicked() {
+                            sim_state_next.set(SimState::NotRunning);
+                        };
+                    } else {
+                        if ui.button("Start").clicked() {
+                            sim_state_next.set(SimState::Running);
+                        };
                     }
-
-                    // peg layers
-                    ui.label("Number of peg layers");
-                    redraw_board.0 = ui
-                        .add(egui::Slider::new(&mut peg_layers.0, 10..=50).drag_value_speed(0.1))
-                        .changed();
-                    ui.end_row();
-
-                    // number of balls
-                    ui.label("Number of balls");
-                    ui.horizontal(|ui| {
-                        if ui.button("-100").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_sub(100);
-                        }
-                        if ui.button("-10").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_sub(10);
-                        }
-                        if ui.button("-1").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_sub(1);
-                        }
-                        ui.add(
-                            egui::DragValue::new(&mut number_of_balls.0)
-                                .speed(1)
-                                .range(1..=10_000_000),
-                        );
-                        if ui.button("+1").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_add(1);
-                        }
-                        if ui.button("+10").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_add(10);
-                        }
-                        if ui.button("+100").clicked() {
-                            number_of_balls.0 = number_of_balls.0.saturating_add(100);
-                        }
-                    });
-                    ui.end_row();
                 });
             });
+            egui::Grid::new("settings").show(ui, |ui| {
+                if sim_state.get().is_running() {
+                    ui.disable();
+                }
+
+                // peg layers
+                ui.label("Number of peg layers");
+                redraw_board.0 = ui
+                    .add(egui::Slider::new(&mut peg_layers.0, 10..=50).drag_value_speed(0.1))
+                    .changed();
+                ui.end_row();
+
+                // number of balls
+                ui.label("Number of balls");
+                let old_number_of_balls = number_of_balls.0;
+                ui.horizontal(|ui| {
+                    if ui.button("-100").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_sub(100);
+                    }
+                    if ui.button("-10").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_sub(10);
+                    }
+                    if ui.button("-1").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_sub(1);
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut number_of_balls.0)
+                            .speed(1)
+                            .range(1..=10_000_000),
+                    );
+                    if ui.button("+1").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_add(1);
+                    }
+                    if ui.button("+10").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_add(10);
+                    }
+                    if ui.button("+100").clicked() {
+                        number_of_balls.0 = number_of_balls.0.saturating_add(100);
+                    }
+                });
+                if number_of_balls.0 != old_number_of_balls {
+                    redraw_board.0 = true;
+                }
+                ui.end_row();
+            });
+        });
     }
 }
 
@@ -343,6 +347,7 @@ impl WallBundle {
 fn setup_board(
     mut commands: Commands,
     peg_layers: Res<PegLayers>,
+    number_of_balls: Res<NumberOfBalls>,
     assets: Res<LoadedAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
@@ -381,7 +386,26 @@ fn setup_board(
             // Spawn bucket walls
             horizontal_offset_base -= PEG_HORIZONTAL_SPACING / 2.;
             let last_layer_y = -((peg_layers.0 - 1) as f32) * PEG_VERTICAL_SPACING;
-            let bucket_floor_y = last_layer_y - 400.;
+
+            let n_balls = number_of_balls.0 as f32;
+            let layers = peg_layers.0 as f32;
+
+            let center_probability = (2.0 / (layers * std::f32::consts::PI)).sqrt();
+            let center_count = n_balls * center_probability;
+
+            let ball_volume = std::f32::consts::PI * BALL_RADIUS * BALL_RADIUS;
+            let circle_packing = 1.0;
+            let required_area = center_count * ball_volume / circle_packing;
+
+            let bucket_width = PEG_HORIZONTAL_SPACING;
+            let mut dynamic_bucket_length = BUCKET_LENGTH;
+
+            if required_area > dynamic_bucket_length * bucket_width {
+                dynamic_bucket_length = required_area / bucket_width * 1.15;
+            }
+
+            let bucket_floor_y = last_layer_y - dynamic_bucket_length;
+
             for i in 0..peg_layers.0 + 2 {
                 parent.spawn(wall_factory.wall(
                     Vec2::new(
@@ -401,7 +425,7 @@ fn setup_board(
             );
 
             // Spawn bucket floor
-            let floor_left_point = Vec2::new(horizontal_offset_base, last_layer_y - 400.);
+            let floor_left_point = Vec2::new(horizontal_offset_base, bucket_floor_y);
             parent.spawn(wall_factory.wall(floor_left_point, flip_x(floor_left_point)));
 
             // Spawn side barriers
