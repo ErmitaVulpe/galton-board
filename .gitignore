@@ -1,1 +1,4 @@
 /target
+/web/assets/
+/web/galton-board.js
+/web/galton-board_bg.wasm

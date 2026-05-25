@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en" style="height:100%">
+
+<body style="margin:0px;height:100%">
+  <script type="module" defer>
+    import init from './galton-board.js'
+
+    init().catch((error) => {
+      if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
+        throw error;
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -41,6 +41,9 @@
               })
               just
               pkg-config
+
+              binaryen
+              wasm-bindgen-cli_0_2_121
             ]
             ++ lib.optionals (lib.strings.hasInfix "linux" system) [
               # Cross Platform 3D Graphics API

@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, num::NonZeroU8};
 
 use bevy::{
     math::bounding::{Aabb2d, BoundingVolume},
@@ -45,6 +45,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
+                // canvas: Some("#galton-board-canvas".into()),
+                fit_canvas_to_parent: true,
                 title: "Galton board simulation".to_string(),
                 ..Default::default()
             }),
@@ -165,11 +167,11 @@ struct RedrawBoard(bool);
 struct SidePanelWidth(f32);
 
 #[derive(Resource)]
-struct PegLayers(u8);
+struct PegLayers(NonZeroU8);
 
 impl Default for PegLayers {
     fn default() -> Self {
-        Self(20)
+        Self(NonZeroU8::new(20).unwrap())
     }
 }
 
@@ -243,7 +245,13 @@ fn ui_system(
                 // peg layers
                 ui.label("Number of peg layers");
                 redraw_board.0 = ui
-                    .add(egui::Slider::new(&mut peg_layers.0, 15..=50).drag_value_speed(0.1))
+                    .add(
+                        egui::Slider::new(
+                            &mut peg_layers.0,
+                            NonZeroU8::new(15).unwrap()..=NonZeroU8::new(50).unwrap(),
+                        )
+                        .drag_value_speed(0.1),
+                    )
                     .changed();
                 ui.end_row();
 
@@ -376,7 +384,7 @@ fn setup_board(
             let mut horizontal_offset_base = 0.;
 
             // Spawn pegs
-            for layer in 0..peg_layers.0 {
+            for layer in 0..peg_layers.0.get() {
                 for i in 0..=layer {
                     let x_jitter = rng.random_range(-PEG_SPAWN_JITTER..=PEG_SPAWN_JITTER);
                     let y_jitter = rng.random_range(-PEG_SPAWN_JITTER..=PEG_SPAWN_JITTER);
@@ -399,7 +407,7 @@ fn setup_board(
             let mut wall_factory = WallBundleFactory::new(&assets, &mut meshes);
 
             // Calculate bucket params
-            let n = peg_layers.0;
+            let n = peg_layers.0.get();
             let mean = 1.0f32;
             let stddev_correction = 1. - ((n - 8) as f32 / 3.).ln();
             let stddev = n as f32 / 6. + stddev_correction;
@@ -412,7 +420,7 @@ fn setup_board(
                 (num.exp()) / denom
             }
 
-            let layer = (0..=peg_layers.0)
+            let layer = (0..=n)
                 .map(|x| normal_pdf(x as f32 - shift, mean, stddev))
                 .collect::<Vec<_>>();
 
@@ -422,7 +430,7 @@ fn setup_board(
 
             // Spawn bucket walls
             horizontal_offset_base -= PEG_HORIZONTAL_SPACING / 2.;
-            let last_layer_y = -((peg_layers.0 - 1) as f32) * PEG_VERTICAL_SPACING;
+            let last_layer_y = -((n - 1) as f32) * PEG_VERTICAL_SPACING;
 
             let n_balls = number_of_balls.0 as f32;
             let max_count = n_balls * max_frac;
@@ -438,7 +446,7 @@ fn setup_board(
                 last_layer_y - (required_bucket_height * 1.2).max(MIN_BUCKET_HEIGHT);
 
             // Spawn bucket fill prediction
-            for i in 0..=peg_layers.0 {
+            for i in 0..=n {
                 let y = bucket_floor_y
                     + required_bucket_height * layer[i as usize] / layer_sum * layer_mul;
                 parent.spawn(wall_factory.texture(
@@ -455,7 +463,7 @@ fn setup_board(
             }
 
             // Spawn bucket sides
-            for i in 0..=peg_layers.0 + 1 {
+            for i in 0..=n + 1 {
                 parent.spawn(wall_factory.wall(
                     Vec2::new(
                         horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
