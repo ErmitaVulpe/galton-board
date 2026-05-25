@@ -1,17 +1,18 @@
+use std::f32::consts::PI;
+
 use bevy::{
     math::bounding::{Aabb2d, BoundingVolume},
     prelude::*,
     window::WindowResized,
 };
-use bevy_egui::{egui::Color32, prelude::*};
+use bevy_egui::{
+    egui::{Color32, emath::OrderedFloat},
+    prelude::*,
+};
 use bevy_rapier2d::prelude::*;
 use bevy_svg::prelude::*;
 use derive_more::{Constructor, IsVariant};
 use rand::RngExt;
-
-use crate::pascal_triangle::PascalTriangle;
-
-mod pascal_triangle;
 
 const BALL_RADIUS: f32 = 8.;
 const BALL_RESTITUTION: Restitution = Restitution::coefficient(0.5);
@@ -34,11 +35,11 @@ const WALL_FRICTION: Friction = Friction::coefficient(0.075);
 const WALL_COLOR: Color = Color::srgb_u8(0xA0, 0xA0, 0xA0);
 
 const SPAWN_AREA_HEIGHT: f32 = 400.;
-const MAX_SPAWN_AREA_BALLS: usize = 250;
+const MAX_SPAWN_AREA_BALLS: usize = 335;
 
-const BOARD_CENTRERING_PADDING: f32 = 50.;
+const CAMERA_CENTRERING_PADDING: f32 = 50.;
 
-const BUCKET_LENGTH: f32 = 200.;
+const MIN_BUCKET_HEIGHT: f32 = 200.;
 
 fn main() {
     App::new()
@@ -56,7 +57,6 @@ fn main() {
         .init_resource::<PegLayers>()
         .init_resource::<RedrawBoard>()
         .init_resource::<SidePanelWidth>()
-        .init_resource::<PascalTriangle>()
         .init_state::<SimState>()
         .add_systems(
             Startup,
@@ -105,7 +105,7 @@ fn update_camera_system(
 
     let center = aabb.center();
     let size = aabb.max - aabb.min;
-    let padded_size = size + Vec2::splat(BOARD_CENTRERING_PADDING * 2.0);
+    let padded_size = size + Vec2::splat(CAMERA_CENTRERING_PADDING * 2.0);
 
     camera.1.scale = Vec3::splat((padded_size / viewport_size).max_element().min(1000.));
     camera.1.translation.y = center.y;
@@ -169,7 +169,7 @@ struct PegLayers(u8);
 
 impl Default for PegLayers {
     fn default() -> Self {
-        Self(15)
+        Self(20)
     }
 }
 
@@ -243,7 +243,7 @@ fn ui_system(
                 // peg layers
                 ui.label("Number of peg layers");
                 redraw_board.0 = ui
-                    .add(egui::Slider::new(&mut peg_layers.0, 10..=50).drag_value_speed(0.1))
+                    .add(egui::Slider::new(&mut peg_layers.0, 15..=50).drag_value_speed(0.1))
                     .changed();
                 ui.end_row();
 
@@ -301,6 +301,37 @@ impl<'a> WallBundleFactory<'a> {
     fn wall(&mut self, a: Vec2, b: Vec2) -> WallBundle {
         WallBundle::new(a, b, self.assets, self.meshes)
     }
+
+    fn texture(&mut self, a: Vec2, b: Vec2, z: f32) -> WallTexture {
+        WallTexture::new(a, b, z, self.assets, self.meshes)
+    }
+}
+
+#[derive(Bundle)]
+struct WallTexture {
+    mesh: Mesh2d,
+    material: MeshMaterial2d<ColorMaterial>,
+    transform: Transform,
+}
+
+impl WallTexture {
+    fn new(a: Vec2, b: Vec2, z: f32, assets: &LoadedAssets, meshes: &mut Assets<Mesh>) -> Self {
+        let delta = b - a;
+        let length = delta.length();
+        let midpoint = (a + b) * 0.5;
+
+        let rotation = Quat::from_rotation_z(-delta.x.atan2(delta.y));
+
+        Self {
+            mesh: Mesh2d(meshes.add(Capsule2d::new(WALL_RADIUS, length))),
+            material: MeshMaterial2d(assets.wall.clone()),
+            transform: Transform {
+                translation: midpoint.extend(z),
+                rotation,
+                ..default()
+            },
+        }
+    }
 }
 
 #[derive(Bundle)]
@@ -308,37 +339,22 @@ struct WallBundle {
     collider: Collider,
     friction: Friction,
     restitution: Restitution,
-    ccd: Ccd,
 
-    mesh: Mesh2d,
-    material: MeshMaterial2d<ColorMaterial>,
-
-    transform: Transform,
+    texture: WallTexture,
 }
 
 impl WallBundle {
     fn new(a: Vec2, b: Vec2, assets: &LoadedAssets, meshes: &mut Assets<Mesh>) -> Self {
         let delta = b - a;
         let length = delta.length();
-        let midpoint = (a + b) * 0.5;
-
-        let rotation = Quat::from_rotation_z(-delta.x.atan2(delta.y));
         let half = length * 0.5;
 
         Self {
             collider: Collider::capsule(Vec2::Y * half, Vec2::NEG_Y * half, WALL_RADIUS),
             friction: WALL_FRICTION,
             restitution: WALL_RESTITUTION,
-            ccd: Ccd::enabled(),
 
-            mesh: Mesh2d(meshes.add(Capsule2d::new(WALL_RADIUS, length))),
-            material: MeshMaterial2d(assets.wall.clone()),
-
-            transform: Transform {
-                translation: midpoint.extend(0.0),
-                rotation,
-                ..default()
-            },
+            texture: WallTexture::new(a, b, 0., assets, meshes),
         }
     }
 }
@@ -368,7 +384,6 @@ fn setup_board(
                         Collider::ball(PEG_RADIUS),
                         PEG_RESTITUTION,
                         PEG_FRICTION,
-                        Ccd::enabled(),
                         Transform::from_xyz(
                             x_jitter + horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
                             y_jitter - (layer as f32) * PEG_VERTICAL_SPACING,
@@ -383,30 +398,64 @@ fn setup_board(
 
             let mut wall_factory = WallBundleFactory::new(&assets, &mut meshes);
 
+            // Calculate bucket params
+            let n = peg_layers.0;
+            let mean = 1.0f32;
+            let stddev_correction = 1. - ((n - 8) as f32 / 3.).ln();
+            let stddev = n as f32 / 6. + stddev_correction;
+            let shift = (n - 2) as f32 / 2.;
+
+            fn normal_pdf(x: f32, mean: f32, stddev: f32) -> f32 {
+                let var = stddev * stddev;
+                let denom = (2.0 * PI * var).sqrt();
+                let num = -(x - mean).powi(2) / (2.0 * var);
+                (num.exp()) / denom
+            }
+
+            let layer = (0..=peg_layers.0)
+                .map(|x| normal_pdf(x as f32 - shift, mean, stddev))
+                .collect::<Vec<_>>();
+
+            let layer_sum = layer.iter().sum::<f32>();
+            let max_frac = layer.iter().map(|x| OrderedFloat(*x)).max().unwrap().0 / layer_sum;
+            let layer_mul = 1. / max_frac;
+
             // Spawn bucket walls
             horizontal_offset_base -= PEG_HORIZONTAL_SPACING / 2.;
             let last_layer_y = -((peg_layers.0 - 1) as f32) * PEG_VERTICAL_SPACING;
 
             let n_balls = number_of_balls.0 as f32;
-            let layers = peg_layers.0 as f32;
-
-            let center_probability = (2.0 / (layers * std::f32::consts::PI)).sqrt();
-            let center_count = n_balls * center_probability;
+            let max_count = n_balls * max_frac;
 
             let ball_volume = std::f32::consts::PI * BALL_RADIUS * BALL_RADIUS;
-            let circle_packing = 1.0;
-            let required_area = center_count * ball_volume / circle_packing;
+            let circle_packing = 0.75;
+            let required_area = max_count * ball_volume / circle_packing;
 
             let bucket_width = PEG_HORIZONTAL_SPACING;
-            let mut dynamic_bucket_length = BUCKET_LENGTH;
+            let required_bucket_height = required_area / bucket_width;
 
-            if required_area > dynamic_bucket_length * bucket_width {
-                dynamic_bucket_length = required_area / bucket_width * 1.15;
+            let bucket_floor_y =
+                last_layer_y - (required_bucket_height * 1.2).max(MIN_BUCKET_HEIGHT);
+
+            // Spawn bucket fill prediction
+            for i in 0..=peg_layers.0 {
+                let y = bucket_floor_y
+                    + required_bucket_height * layer[i as usize] / layer_sum * layer_mul;
+                parent.spawn(wall_factory.texture(
+                    Vec2::new(
+                        horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
+                        y,
+                    ),
+                    Vec2::new(
+                        horizontal_offset_base + ((i + 1) as f32) * PEG_HORIZONTAL_SPACING,
+                        y,
+                    ),
+                    10.,
+                ));
             }
 
-            let bucket_floor_y = last_layer_y - dynamic_bucket_length;
-
-            for i in 0..peg_layers.0 + 2 {
+            // Spawn bucket sides
+            for i in 0..=peg_layers.0 + 1 {
                 parent.spawn(wall_factory.wall(
                     Vec2::new(
                         horizontal_offset_base + (i as f32) * PEG_HORIZONTAL_SPACING,
