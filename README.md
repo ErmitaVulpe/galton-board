@@ -24,8 +24,7 @@ just dev
 
 ## Demo
 
-Insert gif or link to demo
-
+[Demo video](https://github.com/ErmitaVulpe/galton-board/blob/main/demo.mp4)
 
 ## License
 
