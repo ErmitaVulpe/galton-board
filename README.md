@@ -24,7 +24,7 @@ just dev
 
 ## Demo
 
-[Demo video](https://github.com/ErmitaVulpe/galton-board/blob/main/demo.mp4)
+[![Demo](demo.gif)](https://youtu.be/PPR2oOHfQbo)
 
 ## License
 
