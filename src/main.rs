@@ -45,8 +45,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                // canvas: Some("#galton-board-canvas".into()),
                 fit_canvas_to_parent: true,
+                prevent_default_event_handling: false,
                 title: "Galton board simulation".to_string(),
                 ..Default::default()
             }),
